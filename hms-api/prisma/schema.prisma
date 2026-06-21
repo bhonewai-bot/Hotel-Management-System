@@ -1,7 +1,8 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// ──────────────────────────────────────────────
+// HMS Hotel — Prisma Schema
+// Serves: Admin Dashboard (hms-api) + Guest Booking App (hms-booking)
+// Single-property hotel — no multi-hotel or OTA complexity
+// ──────────────────────────────────────────────
 
 generator client {
   provider = "prisma-client"
@@ -12,16 +13,109 @@ datasource db {
   provider = "postgresql"
 }
 
+// ──────────────────────────────────────────────
+// ENUMS
+// ──────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  FRONT_DESK
+  HOUSEKEEPING
+  MAINTENANCE
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+  NO_SHOW
+}
+
+enum RoomStatus {
+  AVAILABLE
+  OCCUPIED
+  DIRTY
+  CLEANING_IN_PROGRESS
+  READY
+  OUT_OF_ORDER
+  MAINTENANCE
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  PARTIALLY_PAID
+  REFUNDED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  MOBILE_PAYMENT
+  BANK_TRANSFER
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum BookingSource {
+  DIRECT
+  WALK_IN
+  PHONE
+  GROUP
+}
+
+enum CommunicationType {
+  EMAIL
+  SMS
+}
+
+enum WorkOrderCategory {
+  PLUMBING
+  ELECTRICAL
+  HVAC
+  FURNITURE
+  APPLIANCE
+  OTHER
+}
+
+// ──────────────────────────────────────────────
+// AUTH (Better Auth — kept intact, added role, phone, twoFactor)
+// ──────────────────────────────────────────────
+
 model User {
-  id            String    @id
-  name          String
-  email         String
-  emailVerified Boolean   @default(false)
-  image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  sessions      Session[]
-  accounts      Account[]
+  id               String    @id
+  name             String
+  email            String
+  emailVerified    Boolean   @default(false)
+  image            String?
+  role             UserRole  @default(FRONT_DESK)
+  phone            String?
+  twoFactorEnabled Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  sessions         Session[]
+  accounts         Account[]
+  twoFactor        TwoFactor?
+
+  assignedTasks      HousekeepingTask[]     @relation("TaskAssignee")
+  reportedWorkOrders MaintenanceWorkOrder[] @relation("WorkOrderReporter")
+  assignedWorkOrders MaintenanceWorkOrder[] @relation("WorkOrderAssignee")
 
   @@unique([email])
   @@map("user")
@@ -73,4 +167,370 @@ model Verification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+model TwoFactor {
+  id          String  @id
+  secret      String
+  backupCodes String
+  userId      String  @unique
+  verified    Boolean @default(true)
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("two_factor")
+}
+
+// ──────────────────────────────────────────────
+// HOTEL CONFIG (singleton — HMS Hotel only)
+// ──────────────────────────────────────────────
+
+model HotelConfig {
+  id        String   @id @default("hms-main")
+  name      String   @default("HMS Hotel")
+  address   String?
+  phone     String?
+  email     String?
+  timezone  String   @default("Asia/Yangon")
+  currency  String   @default("MMK")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("hotel_config")
+}
+
+// ──────────────────────────────────────────────
+// ROOM MANAGEMENT
+// ──────────────────────────────────────────────
+
+model RoomType {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  basePrice    Decimal
+  maxOccupancy Int
+  size         Int?
+  bedType      String?
+  amenities    Json?
+  images       String[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  rooms     Room[]
+  rates     DailyRate[]
+  ratePlans RatePlan[]
+
+  @@map("room_type")
+}
+
+model Room {
+  id         String     @id @default(cuid())
+  roomNumber String
+  floor      Int?
+  status     RoomStatus @default(AVAILABLE)
+  roomTypeId String
+  roomType   RoomType   @relation(fields: [roomTypeId], references: [id], onDelete: Restrict)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  bookingRooms      BookingRoom[]
+  housekeepingTasks HousekeepingTask[]
+  workOrders        MaintenanceWorkOrder[]
+
+  @@unique([roomNumber])
+  @@index([roomTypeId])
+  @@index([status])
+  @@map("room")
+}
+
+model DailyRate {
+  id          String   @id @default(cuid())
+  roomTypeId  String
+  roomType    RoomType @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  date        DateTime
+  rate        Decimal
+  isAvailable  Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@unique([roomTypeId, date])
+  @@index([roomTypeId, date])
+  @@map("daily_rate")
+}
+
+model RatePlan {
+  id                 String   @id @default(cuid())
+  name               String
+  description        String?
+  roomTypeId         String
+  roomType           RoomType @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  dailyRate          Decimal
+  isActive           Boolean  @default(true)
+  startDate          DateTime?
+  endDate            DateTime?
+  minStay            Int      @default(1)
+  cancellationPolicy String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  bookings Booking[]
+
+  @@index([roomTypeId])
+  @@map("rate_plan")
+}
+
+// ──────────────────────────────────────────────
+// GUEST / CRM
+// ──────────────────────────────────────────────
+
+model Guest {
+  id          String   @id @default(cuid())
+  firstName   String
+  lastName    String
+  email       String?
+  phone       String?
+  address     String?
+  dateOfBirth DateTime?
+  nationality String?
+  idType      String?
+  idNumber    String?
+  preferences Json?
+  tags        String[]
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bookings       Booking[]
+  invoices       Invoice[]
+  communications CommunicationLog[]
+  profile        GuestProfile?
+
+  @@index([email])
+  @@index([phone])
+  @@map("guest")
+}
+
+model GuestProfile {
+  id              String    @id @default(cuid())
+  guestId         String    @unique
+  guest           Guest     @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  totalStays      Int       @default(0)
+  totalSpent      Decimal   @default(0)
+  lastStayDate    DateTime?
+  anniversaryDate DateTime?
+  marketingOptIn  Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("guest_profile")
+}
+
+// ──────────────────────────────────────────────
+// RESERVATIONS & FRONT DESK
+// ──────────────────────────────────────────────
+
+model GroupBooking {
+  id           String        @id @default(cuid())
+  name         String
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  totalRooms   Int
+  checkIn      DateTime
+  checkOut     DateTime
+  status       BookingStatus @default(PENDING)
+  notes        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  bookings Booking[]
+
+  @@map("group_booking")
+}
+
+model Booking {
+  id              String        @id @default(cuid())
+  bookingNumber   String        @unique
+  guestId         String
+  guest           Guest         @relation(fields: [guestId], references: [id], onDelete: Restrict)
+  checkIn         DateTime
+  checkOut        DateTime
+  status          BookingStatus @default(PENDING)
+  adultCount      Int           @default(1)
+  childCount      Int           @default(0)
+  specialRequests String?
+  source          BookingSource @default(DIRECT)
+  groupBookingId  String?
+  groupBooking    GroupBooking? @relation(fields: [groupBookingId], references: [id], onDelete: SetNull)
+  ratePlanId      String?
+  ratePlan        RatePlan?     @relation(fields: [ratePlanId], references: [id], onDelete: SetNull)
+  totalAmount     Decimal       @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  rooms    BookingRoom[]
+  invoice  Invoice?
+  payments Payment[]
+
+  @@index([guestId])
+  @@index([checkIn, checkOut])
+  @@index([status])
+  @@index([groupBookingId])
+  @@map("booking")
+}
+
+model BookingRoom {
+  id          String   @id @default(cuid())
+  bookingId   String
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  roomId      String
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  ratePerNight Decimal
+  currency    String   @default("MMK")
+
+  @@unique([bookingId, roomId])
+  @@index([roomId])
+  @@map("booking_room")
+}
+
+// ──────────────────────────────────────────────
+// HOUSEKEEPING
+// ──────────────────────────────────────────────
+
+model HousekeepingTask {
+  id          String     @id @default(cuid())
+  roomId      String
+  room        Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  assignedTo  String?
+  assignee    User?      @relation("TaskAssignee", fields: [assignedTo], references: [id], onDelete: SetNull)
+  status      TaskStatus @default(PENDING)
+  priority    Priority   @default(MEDIUM)
+  scheduledAt DateTime?
+  completedAt DateTime?
+  notes       String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([roomId])
+  @@index([assignedTo])
+  @@index([status])
+  @@index([scheduledAt])
+  @@map("housekeeping_task")
+}
+
+// ──────────────────────────────────────────────
+// MAINTENANCE
+// ──────────────────────────────────────────────
+
+model MaintenanceWorkOrder {
+  id            String            @id @default(cuid())
+  roomId        String?
+  room          Room?             @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  title         String
+  description   String?
+  category      WorkOrderCategory
+  status        TaskStatus        @default(PENDING)
+  priority      Priority          @default(MEDIUM)
+  reportedBy    String?
+  reporter      User?             @relation("WorkOrderReporter", fields: [reportedBy], references: [id], onDelete: SetNull)
+  assignedTo    String?
+  assignee      User?             @relation("WorkOrderAssignee", fields: [assignedTo], references: [id], onDelete: SetNull)
+  scheduledAt   DateTime?
+  completedAt   DateTime?
+  estimatedCost Decimal?
+  actualCost    Decimal?
+  notes         String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([roomId])
+  @@index([assignedTo])
+  @@index([status])
+  @@map("maintenance_work_order")
+}
+
+// ──────────────────────────────────────────────
+// BILLING
+// ──────────────────────────────────────────────
+
+model Invoice {
+  id             String         @id @default(cuid())
+  invoiceNumber  String         @unique
+  bookingId      String         @unique
+  booking        Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  guestId        String
+  guest          Guest          @relation(fields: [guestId], references: [id], onDelete: Restrict)
+  subtotal       Decimal        @default(0)
+  taxAmount      Decimal        @default(0)
+  discountAmount Decimal        @default(0)
+  totalAmount    Decimal        @default(0)
+  status         InvoiceStatus  @default(PENDING)
+  issuedAt       DateTime       @default(now())
+  dueAt          DateTime?
+  paidAt         DateTime?
+  notes          String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  items    InvoiceItem[]
+  payments Payment[]
+
+  @@index([bookingId])
+  @@index([guestId])
+  @@index([status])
+  @@map("invoice")
+}
+
+model InvoiceItem {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Decimal  @default(1)
+  unitPrice   Decimal
+  totalPrice  Decimal
+  category    String?
+  date        DateTime?
+
+  @@index([invoiceId])
+  @@map("invoice_item")
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  invoiceId       String
+  invoice         Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  bookingId       String
+  booking         Booking       @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  amount          Decimal
+  method          PaymentMethod
+  referenceNumber String?
+  status          InvoiceStatus @default(PENDING)
+  paidAt          DateTime?
+  notes           String?
+  createdAt       DateTime      @default(now())
+
+  @@index([invoiceId])
+  @@index([bookingId])
+  @@index([status])
+  @@map("payment")
+}
+
+// ──────────────────────────────────────────────
+// CRM — COMMUNICATION LOG
+// ──────────────────────────────────────────────
+
+model CommunicationLog {
+  id        String            @id @default(cuid())
+  guestId   String?
+  guest     Guest?            @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  recipient String
+  type      CommunicationType
+  subject   String?
+  content   String
+  status    String
+  sentAt    DateTime          @default(now())
+  createdAt DateTime          @default(now())
+
+  @@index([guestId])
+  @@index([type])
+  @@map("communication_log")
 }

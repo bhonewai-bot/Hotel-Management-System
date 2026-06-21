@@ -1,3 +1,6 @@
+allowBuilds:
+  '@prisma/engines': set this to true or false
+  prisma: set this to true or false
 ignoredBuiltDependencies:
   - esbuild
   - sharp
@@ -5,3 +8,5 @@ ignoredBuiltDependencies:
 onlyBuiltDependencies:
   - '@prisma/engines'
   - prisma
+overrides:
+  kysely: 0.27.4
