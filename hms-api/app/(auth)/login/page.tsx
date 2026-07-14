@@ -7,7 +7,6 @@ import { z } from "zod/v4";
 import { Lock, ShieldCheck } from "@phosphor-icons/react";
 
 import { authClient } from "@/lib/auth-client";
-import { ensureTwoFactorEnabled } from "@/lib/actions/auth";
 
 import {
   Form,
@@ -40,27 +39,27 @@ export default function LoginPage() {
     setServerError(null);
 
     startTransition(async () => {
-      const formData = new FormData();
-      formData.set("email", data.email);
-      formData.set("password", data.password);
+      const { data: signInData, error: signInError } =
+        await authClient.signIn.email({
+          email: data.email,
+          password: data.password,
+        });
 
-      const result = await ensureTwoFactorEnabled(null, formData);
-      if (!result.success) {
-        setServerError(result.error || "Something went wrong");
+      if (signInError) {
+        setServerError(
+          signInError.status === 401
+            ? "Invalid email or password"
+            : signInError.message || "Sign in failed"
+        );
         return;
       }
 
-      const { error } = await authClient.signIn.email({
-        email: data.email,
-        password: data.password,
-      });
-
-      if (error) {
-        setServerError(
-          error.status === 401
-            ? "Invalid email or password"
-            : error.message || "Sign in failed"
-        );
+      if (
+        signInData &&
+        "twoFactorRedirect" in signInData &&
+        signInData.twoFactorRedirect
+      ) {
+        return;
       }
     });
   }

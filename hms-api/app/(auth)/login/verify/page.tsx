@@ -22,6 +22,7 @@ export default function VerifyPage() {
   const [isResending, setIsResending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const verifyingRef = useRef(false);
+  const otpSentRef = useRef(false);
 
   useEffect(() => {
     if (code.length === 6 && !verifyingRef.current) {
@@ -29,6 +30,20 @@ export default function VerifyPage() {
       handleVerify(code);
     }
   }, [code]);
+
+  useEffect(() => {
+    if (!otpSentRef.current) {
+      otpSentRef.current = true;
+      sendInitialOtp();
+    }
+  }, []);
+
+  async function sendInitialOtp() {
+    const { error } = await authClient.twoFactor.sendOtp();
+    if (error) {
+      toast.error("Failed to send verification code. Please try again.");
+    }
+  }
 
   async function handleVerify(otpCode: string) {
     setIsVerifying(true);
@@ -203,7 +218,7 @@ export default function VerifyPage() {
 
           {/* Footer */}
           <p className="mt-8 text-center text-xs text-muted-foreground/60">
-            Code expires in 3 minutes
+            Code expires in 5 minutes
           </p>
         </div>
       </div>
