@@ -24,8 +24,8 @@ function generateBackupCodes(count = 10, length = 8): string {
 }
 
 async function main() {
-  const email = "damenaosan@gmail.com";
-  const password = "Admin@123";
+  const email = process.env.ADMIN_EMAIL || "admin@localhost";
+  const password = process.env.ADMIN_PASSWORD || "password";
   const name = "Bhone Wai";
 
   const existing = await prisma.user.findUnique({ where: { email } });

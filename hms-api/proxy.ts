@@ -3,10 +3,11 @@ import type { NextRequest } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 
-const publicPaths = ["/login", "/api/auth"];
+const AUTH_PREFIX = "/api/auth";
+const LOGIN_PATHS = ["/login", "/forgot-password", "/reset-password"];
 
-function isPublicPath(pathname: string): boolean {
-  return publicPaths.some(
+function isLoginPath(pathname: string): boolean {
+  return LOGIN_PATHS.some(
     (path) => pathname === path || pathname.startsWith(path + "/")
   );
 }
@@ -14,7 +15,12 @@ function isPublicPath(pathname: string): boolean {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (isPublicPath(pathname) || pathname.startsWith("/_next")) {
+  if (pathname.startsWith("/_next")) {
+    return NextResponse.next();
+  }
+
+  // Always let auth API routes through (sign-in, sign-out, OTP, etc.)
+  if (pathname.startsWith(AUTH_PREFIX)) {
     return NextResponse.next();
   }
 
@@ -22,7 +28,13 @@ export async function proxy(request: NextRequest) {
     headers: await headers(),
   });
 
-  if (!session) {
+  // Redirect authenticated users away from login pages
+  if (session && isLoginPath(pathname)) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
+  // Redirect unauthenticated users to login
+  if (!session && !isLoginPath(pathname)) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 

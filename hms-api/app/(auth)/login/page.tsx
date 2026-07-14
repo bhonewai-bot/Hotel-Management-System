@@ -4,6 +4,7 @@ import { useTransition, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v4";
+import Link from "next/link";
 import { Lock, ShieldCheck } from "@phosphor-icons/react";
 
 import { authClient } from "@/lib/auth-client";
@@ -174,6 +175,14 @@ export default function LoginPage() {
                       />
                     </FormControl>
                     <FormMessage />
+                    <div className="mt-1">
+                      <Link
+                        href="/forgot-password"
+                        className="text-xs font-medium text-primary underline underline-offset-4 hover:text-primary/80"
+                      >
+                        Forgot password?
+                      </Link>
+                    </div>
                   </FormItem>
                 )}
               />
