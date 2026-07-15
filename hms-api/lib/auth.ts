@@ -4,7 +4,11 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { twoFactor } from "better-auth/plugins";
 import { nextCookies } from "better-auth/next-js";
 import prisma from "@/lib/prisma";
-import { sendOTP, sendVerificationEmail, sendResetPasswordEmail } from "@/lib/email";
+import {
+  sendOTP,
+  sendVerificationEmail,
+  sendResetPasswordEmail,
+} from "@/lib/email";
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -12,6 +16,8 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
+    requireEmailVerification: true,
+    revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }) => {
       void sendResetPasswordEmail(user.email, url);
     },
