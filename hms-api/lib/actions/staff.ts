@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { randomBytes } from "crypto";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import {
@@ -13,6 +14,23 @@ import {
 
 // Privileged roles that require ADMIN access to manage
 const PRIVILEGED_ROLES = ["ADMIN", "MANAGER"] as const;
+
+// Roles that require 2FA by default
+const ROLES_REQUIRING_2FA = ["ADMIN", "MANAGER"] as const;
+
+function generateSecret(length = 20): string {
+  return randomBytes(length).toString("base64url");
+}
+
+function generateBackupCodes(count = 10, length = 8): string {
+  const codes: string[] = [];
+  for (let i = 0; i < count; i++) {
+    codes.push(
+      randomBytes(length).toString("hex").slice(0, length).toUpperCase(),
+    );
+  }
+  return codes.join(",");
+}
 
 async function requireStaffAccess() {
   const hdrs = await headers();
@@ -42,7 +60,9 @@ function canManageUser(callerRole: string, targetRole: string): boolean {
 
   // MANAGER can only manage non-privileged roles
   if (callerRole === "MANAGER") {
-    return !PRIVILEGED_ROLES.includes(targetRole as typeof PRIVILEGED_ROLES[number]);
+    return !PRIVILEGED_ROLES.includes(
+      targetRole as (typeof PRIVILEGED_ROLES)[number],
+    );
   }
 
   return false;
@@ -107,16 +127,64 @@ export async function createStaff(formData: FormData) {
         result && "error" in result
           ? (result as { error: { message?: string } }).error?.message
           : "Failed to create user";
-      return { success: false as const, error: message || "Failed to create user" };
+      return {
+        success: false as const,
+        error: message || "Failed to create user",
+      };
     }
 
     // signUp.email defaults role to FRONT_DESK, so update it
     const newUser = await prisma.user.findUnique({ where: { email } });
-    if (newUser && role !== "FRONT_DESK") {
+    if (newUser) {
+      const updateData: {
+        role?:
+          | "ADMIN"
+          | "MANAGER"
+          | "FRONT_DESK"
+          | "HOUSEKEEPING"
+          | "MAINTENANCE";
+        emailVerified?: boolean;
+        twoFactorEnabled?: boolean;
+      } = {};
+
+      // Update role if not FRONT_DESK (default)
+      if (role !== "FRONT_DESK") {
+        updateData.role = role as
+          | "ADMIN"
+          | "MANAGER"
+          | "FRONT_DESK"
+          | "HOUSEKEEPING"
+          | "MAINTENANCE";
+      }
+
+      // Set emailVerified to true so staff can log in immediately
+      updateData.emailVerified = true;
+
+      // Enable 2FA for ADMIN and MANAGER roles
+      const requires2FA = ROLES_REQUIRING_2FA.includes(
+        role as (typeof ROLES_REQUIRING_2FA)[number],
+      );
+      if (requires2FA) {
+        updateData.twoFactorEnabled = true;
+      }
+
       await prisma.user.update({
         where: { id: newUser.id },
-        data: { role },
+        data: updateData,
       });
+
+      // Create TwoFactor record for roles requiring 2FA
+      if (requires2FA) {
+        await prisma.twoFactor.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: newUser.id,
+            secret: generateSecret(),
+            backupCodes: generateBackupCodes(),
+            verified: true,
+          },
+        });
+      }
     }
 
     revalidatePath("/dashboard/staff");
@@ -284,7 +352,8 @@ export async function deactivateStaff(formData: FormData) {
     revalidatePath("/dashboard/staff");
     return { success: true as const };
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Failed to deactivate user";
+    const message =
+      e instanceof Error ? e.message : "Failed to deactivate user";
     return { success: false as const, error: message };
   }
 }
@@ -333,7 +402,8 @@ export async function reactivateStaff(formData: FormData) {
     revalidatePath("/dashboard/staff");
     return { success: true as const };
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Failed to reactivate user";
+    const message =
+      e instanceof Error ? e.message : "Failed to reactivate user";
     return { success: false as const, error: message };
   }
 }
