@@ -64,6 +64,14 @@ const data = {
         />
       ),
     },
+    {
+      title: "Admin Management",
+      url: "/dashboard/admins",
+      icon: (
+        <UsersIcon
+        />
+      ),
+    },
   ],
   navClouds: [
     {
