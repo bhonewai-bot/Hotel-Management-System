@@ -47,7 +47,20 @@ async function requireStaffAccess() {
     select: { id: true, role: true, name: true, email: true },
   });
 
-  if (!user || !["ADMIN", "MANAGER"].includes(user.role)) {
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  // Check permission using RBAC system instead of hardcoded roles
+  const hasPermission = await auth.api.userHasPermission({
+    headers: hdrs,
+    body: {
+      userId: session.user.id,
+      permissions: { staff: ["read"] },
+    },
+  });
+
+  if (!hasPermission) {
     throw new Error("Forbidden: Staff management access required");
   }
 

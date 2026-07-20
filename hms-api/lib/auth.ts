@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { expo } from "@better-auth/expo";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { twoFactor } from "better-auth/plugins";
+import { admin as adminPlugin, twoFactor } from "better-auth/plugins";
 import { nextCookies } from "better-auth/next-js";
 import prisma from "@/lib/prisma";
 import {
@@ -9,6 +9,7 @@ import {
   sendVerificationEmail,
   sendResetPasswordEmail,
 } from "@/lib/email";
+import { ac, roles } from "@/lib/rbac";
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -60,5 +61,34 @@ export const auth = betterAuth({
       },
     }),
     nextCookies(),
+    adminPlugin({
+      ac,
+      roles,
+      defaultRole: "FRONT_DESK",
+      adminRoles: ["ADMIN"],
+    }),
   ],
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          await prisma.guest.create({
+            data: {
+              firstName: user.name?.split(" ")[0] || "",
+              lastName: user.name?.split(" ").slice(1).join(" ") || "",
+              email: user.email,
+              phone: user.phone,
+              profile: {
+                create: {
+                  totalStays: 0,
+                  totalSpent: 0,
+                  marketingOptIn: true,
+                },
+              },
+            },
+          });
+        },
+      },
+    },
+  },
 });

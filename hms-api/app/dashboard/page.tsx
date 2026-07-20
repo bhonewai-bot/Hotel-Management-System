@@ -1,3 +1,6 @@
+import { redirect } from "next/navigation"
+import { headers } from "next/headers"
+import { auth } from "@/lib/auth"
 import { AppSidebar } from "@/components/app-sidebar"
 import { ChartAreaInteractive } from "@/components/chart-area-interactive"
 import { DataTable } from "@/components/data-table"
@@ -7,7 +10,30 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 
 import data from "./data.json"
 
-export default function Page() {
+export default async function Page() {
+  // Check authentication
+  const hdrs = await headers()
+  const session = await auth.api.getSession({
+    headers: hdrs,
+  })
+
+  if (!session?.user?.id) {
+    redirect("/login")
+  }
+
+  // Check dashboard permission
+  const hasPermission = await auth.api.userHasPermission({
+    headers: hdrs,
+    body: {
+      userId: session.user.id,
+      permissions: { dashboard: ["read"] },
+    },
+  })
+
+  if (!hasPermission) {
+    redirect("/login")
+  }
+
   return (
     <SidebarProvider
       style={
