@@ -14,34 +14,36 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { SquaresFourIcon, UsersIcon, CommandIcon } from "@phosphor-icons/react"
+import { authClient } from "@/lib/auth-client"
 
-const data = {
-  user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
+const navMain = [
+  {
+    title: "Dashboard",
+    url: "/dashboard",
+    icon: (
+      <SquaresFourIcon
+      />
+    ),
   },
-  navMain: [
-    {
-      title: "Dashboard",
-      url: "/dashboard",
-      icon: (
-        <SquaresFourIcon
-        />
-      ),
-    },
-    {
-      title: "Staff Management",
-      url: "/dashboard/staff",
-      icon: (
-        <UsersIcon
-        />
-      ),
-    },
-  ],
-}
+  {
+    title: "Staff Management",
+    url: "/dashboard/staff",
+    icon: (
+      <UsersIcon
+      />
+    ),
+  },
+]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { data: session } = authClient.useSession()
+
+  const user = {
+    name: session?.user?.name ?? "Guest",
+    email: session?.user?.email ?? "",
+    avatar: session?.user?.image ?? "",
+  }
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -53,17 +55,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             >
               <a href="#">
                 <CommandIcon className="size-5!" />
-                <span className="text-base font-semibold">Acme Inc.</span>
+                <span className="text-base font-semibold">HMS Hotel</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
+        <NavMain items={navMain} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={user} />
       </SidebarFooter>
     </Sidebar>
   )

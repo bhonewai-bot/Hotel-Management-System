@@ -15,6 +15,18 @@ export const auth = betterAuth({
     provider: "postgresql",
   }),
   trustedOrigins: ["hmsbooking://"],
+  rateLimit: {
+    enabled: true,
+    window: 10,
+    max: 100,
+    customRules: {
+      "/api/auth/sign-in/email": { window: 60, max: 5 },
+      "/api/auth/sign-in/social": { window: 60, max: 5 },
+      "/api/auth/sign-up/email": { window: 60, max: 3 },
+      "/api/auth/two-factor/verify-otp": { window: 60, max: 5 },
+      "/api/auth/two-factor/send-otp": { window: 60, max: 3 },
+    },
+  },
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true,
