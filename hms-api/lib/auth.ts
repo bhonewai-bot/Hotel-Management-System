@@ -60,13 +60,13 @@ export const auth = betterAuth({
         },
       },
     }),
-    nextCookies(),
     adminPlugin({
       ac,
       roles,
       defaultRole: "FRONT_DESK",
       adminRoles: ["ADMIN"],
     }),
+    nextCookies(),
   ],
   databaseHooks: {
     user: {
