@@ -1,7 +1,8 @@
-import { Redirect } from "expo-router";
+import { Redirect, Stack } from "expo-router";
 import { useSession } from "@/lib/auth-client";
+import AppTabs from "@/components/app-tabs";
 
-export default function Index() {
+export default function TabsLayout() {
   const { data: session, isPending } = useSession();
 
   if (isPending) {
@@ -12,5 +13,5 @@ export default function Index() {
     return <Redirect href="/(auth)/sign-in" />;
   }
 
-  return <Redirect href="/(tabs)" />;
+  return <AppTabs />;
 }

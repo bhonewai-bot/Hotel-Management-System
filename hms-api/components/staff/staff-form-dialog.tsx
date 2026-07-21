@@ -7,8 +7,8 @@ import { z } from "zod/v4";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { createUser, updateUser } from "@/lib/actions/admin";
-import { createAdminSchema, updateAdminSchema } from "@/lib/validations/admin";
+import { createStaff, updateStaff } from "@/lib/actions/staff";
+import { createStaffSchema, updateStaffSchema } from "@/lib/validations/staff";
 
 import {
   Dialog,
@@ -38,24 +38,31 @@ import {
 
 const ROLES = ["ADMIN", "MANAGER", "FRONT_DESK", "HOUSEKEEPING", "MAINTENANCE"] as const;
 
-type CreateFormValues = z.infer<typeof createAdminSchema>;
-type UpdateFormValues = z.infer<typeof updateAdminSchema>;
+type CreateFormValues = z.infer<typeof createStaffSchema>;
+type UpdateFormValues = z.infer<typeof updateStaffSchema>;
 
-interface AdminFormDialogProps {
+interface StaffFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mode: "create" | "edit";
   user?: { id: string; name: string; email: string; role: string };
+  callerRole: string;
 }
 
-export function AdminFormDialog({
+export function StaffFormDialog({
   open,
   onOpenChange,
   mode,
   user,
-}: AdminFormDialogProps) {
+  callerRole,
+}: StaffFormDialogProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+
+  // Filter available roles based on caller's permissions
+  const availableRoles = callerRole === "ADMIN"
+    ? ROLES
+    : ROLES.filter(r => !["ADMIN", "MANAGER"].includes(r));
 
   if (mode === "create") {
     return (
@@ -65,6 +72,7 @@ export function AdminFormDialog({
         isPending={isPending}
         startTransition={startTransition}
         router={router}
+        availableRoles={availableRoles}
       />
     );
   }
@@ -81,6 +89,7 @@ export function AdminFormDialog({
       isPending={isPending}
       startTransition={startTransition}
       router={router}
+      availableRoles={availableRoles}
     />
   );
 }
@@ -91,15 +100,17 @@ function CreateForm({
   isPending,
   startTransition,
   router,
+  availableRoles,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isPending: boolean;
   startTransition: React.TransitionStartFunction;
   router: ReturnType<typeof useRouter>;
+  availableRoles: readonly string[];
 }) {
   const form = useForm<CreateFormValues>({
-    resolver: zodResolver(createAdminSchema),
+    resolver: zodResolver(createStaffSchema),
     defaultValues: { name: "", email: "", password: "", role: "FRONT_DESK" },
   });
 
@@ -111,11 +122,11 @@ function CreateForm({
       formData.append("password", data.password);
       formData.append("role", data.role);
 
-      const result = await createUser(formData);
+      const result = await createStaff(formData);
       if (result.error) {
         toast.error(result.error);
       } else {
-        toast.success("User created successfully");
+        toast.success("Staff member created successfully");
         form.reset();
         onOpenChange(false);
         router.refresh();
@@ -127,9 +138,9 @@ function CreateForm({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add New User</DialogTitle>
+          <DialogTitle>Add New Staff Member</DialogTitle>
           <DialogDescription>
-            Create a new account with a password.
+            Create a new staff account with a password.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -186,7 +197,7 @@ function CreateForm({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {ROLES.map((role) => (
+                      {availableRoles.map((role) => (
                         <SelectItem key={role} value={role}>
                           {role.replace(/_/g, " ")}
                         </SelectItem>
@@ -208,7 +219,7 @@ function CreateForm({
                     Saving...
                   </span>
                 ) : (
-                  "Create User"
+                  "Create Staff"
                 )}
               </Button>
             </DialogFooter>
@@ -226,6 +237,7 @@ function EditForm({
   isPending,
   startTransition,
   router,
+  availableRoles,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -233,9 +245,10 @@ function EditForm({
   isPending: boolean;
   startTransition: React.TransitionStartFunction;
   router: ReturnType<typeof useRouter>;
+  availableRoles: readonly string[];
 }) {
   const form = useForm<UpdateFormValues>({
-    resolver: zodResolver(updateAdminSchema),
+    resolver: zodResolver(updateStaffSchema),
     defaultValues: {
       userId: user.id,
       name: user.name,
@@ -252,11 +265,11 @@ function EditForm({
       if (data.email) formData.append("email", data.email);
       if (data.role) formData.append("role", data.role);
 
-      const result = await updateUser(formData);
+      const result = await updateStaff(formData);
       if (result.error) {
         toast.error(result.error);
       } else {
-        toast.success("User updated successfully");
+        toast.success("Staff member updated successfully");
         onOpenChange(false);
         router.refresh();
       }
@@ -267,9 +280,9 @@ function EditForm({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Edit User</DialogTitle>
+          <DialogTitle>Edit Staff Member</DialogTitle>
           <DialogDescription>
-            Update user information and role.
+            Update staff information and role.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -313,7 +326,7 @@ function EditForm({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {ROLES.map((role) => (
+                      {availableRoles.map((role) => (
                         <SelectItem key={role} value={role}>
                           {role.replace(/_/g, " ")}
                         </SelectItem>

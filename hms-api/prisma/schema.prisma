@@ -99,16 +99,17 @@ enum WorkOrderCategory {
 // ──────────────────────────────────────────────
 
 model User {
-  id               String    @id
+  id               String     @id
   name             String
   email            String
-  emailVerified    Boolean   @default(false)
+  emailVerified    Boolean    @default(false)
   image            String?
-  role             UserRole  @default(FRONT_DESK)
+  role             UserRole   @default(FRONT_DESK)
   phone            String?
-  twoFactorEnabled Boolean   @default(false)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  twoFactorEnabled Boolean    @default(false)
+  isActive         Boolean    @default(true)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
   sessions         Session[]
   accounts         Account[]
   twoFactor        TwoFactor?
@@ -116,6 +117,11 @@ model User {
   assignedTasks      HousekeepingTask[]     @relation("TaskAssignee")
   reportedWorkOrders MaintenanceWorkOrder[] @relation("WorkOrderReporter")
   assignedWorkOrders MaintenanceWorkOrder[] @relation("WorkOrderAssignee")
+
+  banned     Boolean?    @default(false)
+  banReason  String?
+  banExpires DateTime?
+  twofactors TwoFactor[]
 
   @@unique([email])
   @@map("user")
@@ -131,6 +137,8 @@ model Session {
   userAgent String?
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  impersonatedBy String?
 
   @@unique([token])
   @@index([userId])
@@ -170,16 +178,18 @@ model Verification {
 }
 
 model TwoFactor {
-  id                     String   @id
-  secret                 String
-  backupCodes            String
-  userId                 String   @unique
-  verified               Boolean  @default(true)
-  failedVerificationCount Int      @default(0)
-  lockedUntil            DateTime?
-  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                      String    @id
+  secret                  String
+  backupCodes             String
+  userId                  String    @unique
+  verified                Boolean   @default(true)
+  failedVerificationCount Int?      @default(0)
+  lockedUntil             DateTime?
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("two_factor")
+  @@index([secret])
+  @@index([userId])
 }
 
 // ──────────────────────────────────────────────
@@ -250,7 +260,7 @@ model DailyRate {
   roomType    RoomType @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
   date        DateTime
   rate        Decimal
-  isAvailable  Boolean  @default(true)
+  isAvailable Boolean  @default(true)
   createdAt   DateTime @default(now())
 
   @@unique([roomTypeId, date])
@@ -259,19 +269,19 @@ model DailyRate {
 }
 
 model RatePlan {
-  id                 String   @id @default(cuid())
+  id                 String    @id @default(cuid())
   name               String
   description        String?
   roomTypeId         String
-  roomType           RoomType @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  roomType           RoomType  @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
   dailyRate          Decimal
-  isActive           Boolean  @default(true)
+  isActive           Boolean   @default(true)
   startDate          DateTime?
   endDate            DateTime?
-  minStay            Int      @default(1)
+  minStay            Int       @default(1)
   cancellationPolicy String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   bookings Booking[]
 
@@ -284,7 +294,7 @@ model RatePlan {
 // ──────────────────────────────────────────────
 
 model Guest {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   firstName   String
   lastName    String
   email       String?
@@ -297,8 +307,8 @@ model Guest {
   preferences Json?
   tags        String[]
   notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   bookings       Booking[]
   invoices       Invoice[]
@@ -380,13 +390,13 @@ model Booking {
 }
 
 model BookingRoom {
-  id          String   @id @default(cuid())
-  bookingId   String
-  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  roomId      String
-  room        Room     @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  id           String  @id @default(cuid())
+  bookingId    String
+  booking      Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  roomId       String
+  room         Room    @relation(fields: [roomId], references: [id], onDelete: Restrict)
   ratePerNight Decimal
-  currency    String   @default("MMK")
+  currency     String  @default("MMK")
 
   @@unique([bookingId, roomId])
   @@index([roomId])
@@ -454,23 +464,23 @@ model MaintenanceWorkOrder {
 // ──────────────────────────────────────────────
 
 model Invoice {
-  id             String         @id @default(cuid())
-  invoiceNumber  String         @unique
-  bookingId      String         @unique
-  booking        Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  id             String        @id @default(cuid())
+  invoiceNumber  String        @unique
+  bookingId      String        @unique
+  booking        Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   guestId        String
-  guest          Guest          @relation(fields: [guestId], references: [id], onDelete: Restrict)
-  subtotal       Decimal        @default(0)
-  taxAmount      Decimal        @default(0)
-  discountAmount Decimal        @default(0)
-  totalAmount    Decimal        @default(0)
-  status         InvoiceStatus  @default(PENDING)
-  issuedAt       DateTime       @default(now())
+  guest          Guest         @relation(fields: [guestId], references: [id], onDelete: Restrict)
+  subtotal       Decimal       @default(0)
+  taxAmount      Decimal       @default(0)
+  discountAmount Decimal       @default(0)
+  totalAmount    Decimal       @default(0)
+  status         InvoiceStatus @default(PENDING)
+  issuedAt       DateTime      @default(now())
   dueAt          DateTime?
   paidAt         DateTime?
   notes          String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   items    InvoiceItem[]
   payments Payment[]
@@ -482,11 +492,11 @@ model Invoice {
 }
 
 model InvoiceItem {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   invoiceId   String
-  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice     Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   description String
-  quantity    Decimal  @default(1)
+  quantity    Decimal   @default(1)
   unitPrice   Decimal
   totalPrice  Decimal
   category    String?

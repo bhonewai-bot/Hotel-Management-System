@@ -5,9 +5,9 @@ import prisma from "@/lib/prisma";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
-import { AdminTable } from "@/components/admins";
+import { StaffTable } from "@/components/staff";
 
-export default async function AdminsPage() {
+export default async function StaffPage() {
   const hdrs = await headers();
   const session = await auth.api.getSession({
     headers: hdrs,
@@ -19,10 +19,10 @@ export default async function AdminsPage() {
 
   const user = await prisma.user.findUnique({
     where: { id: session!.user.id },
-    select: { role: true },
+    select: { id: true, role: true },
   });
 
-  if (!user || user.role !== "ADMIN") {
+  if (!user || !["ADMIN", "MANAGER"].includes(user.role)) {
     redirect("/dashboard");
   }
 
@@ -33,6 +33,7 @@ export default async function AdminsPage() {
       name: true,
       email: true,
       role: true,
+      isActive: true,
       createdAt: true,
       image: true,
     },
@@ -59,7 +60,11 @@ export default async function AdminsPage() {
           <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
               <div className="px-4 lg:px-6">
-                <AdminTable users={serializedUsers} />
+                <StaffTable
+                  users={serializedUsers}
+                  callerRole={user.role}
+                  callerId={user.id}
+                />
               </div>
             </div>
           </div>

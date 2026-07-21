@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v4";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Lock, ShieldCheck } from "@phosphor-icons/react";
 
 import { authClient } from "@/lib/auth-client";
@@ -28,6 +29,7 @@ const loginSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -62,6 +64,9 @@ export default function LoginPage() {
       ) {
         return;
       }
+
+      // Redirect to dashboard after successful login (for non-2FA roles)
+      router.push("/dashboard");
     });
   }
 
